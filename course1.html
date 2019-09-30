@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src = "./lesson01/Oak3D_v_0_5.js"></script>
+</head>
+
+<script id = 'shader-fs' type = 'x-shader/x-fragment'>
+    precision mediump float;
+
+    void main(void){
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    }
+</script>
+
+<script id = 'shader-vs' type = 'x-shader/x-vertex'>
+    attribute vec3 aVertexPosition;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+
+    void main(void){
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+    }
+</script>
+
+<script>
+    var gl
+    function initGl(canvas){
+        try{
+            gl = canvas.getContext('experimental-webgl')
+            gl.viewportWidth = canvas.width
+            gl.viewportHeight = canvas.height
+        }catch(e){
+        }
+        if(!gl){
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+    }
+
+    var shaderProgram
+    function initShaders(){
+        var fragmentShader = getShader(gl, 'shader-fs') //片元着色器
+        var vertexShader = getShader(gl, 'shader-vs')   //顶点着色器
+        //将上面两种着色器加入附加到了一个叫做“program”的WebGL对象里。Program是系统中原生于WebGL里的二进制码，你可以把它看作是一种在显卡中运行指定指令的方法。
+        //和你想的一样，你可以把若干着色器组合捆绑到一个program中，每个着色器都可以看做一段program中的代码。
+        //特别是每个program可以储存一个片元着色器和一个顶点着色器。
+        shaderProgram = gl.createProgram()  
+        gl.attachShader(shaderProgram, vertexShader)
+        gl.attachShader(shaderProgram, fragmentShader)
+        gl.linkProgram(shaderProgram)
+
+        if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)){
+            alert('Could not initialise shaders')
+        }
+
+        gl.useProgram(shaderProgram)
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, 'aVertexPosition')
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute)
+
+        //从program中取得另外两个值，也就是两个叫做uniform的变量的地址
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, 'uPMatrix')
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMVMatrix')
+    }
+
+    function getShader(gl, id){
+        var shaderScript = document.getElementById(id)
+        if(!shaderScript){
+            return null
+        }
+
+        var str = ''
+        var k = shaderScript.firstChild
+        while(k){
+            if(k.nodeType == 3){
+                str += k.textContent
+            }
+            k = k.nextSibling
+        }
+
+        var shader
+        if(shaderScript.type == 'x-shader/x-fragment'){
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        }else if(shaderScript.type == 'x-shader/x-vertex'){
+            shader = gl.createShader(gl.VERTEX_SHADER)
+        }else{
+            return null
+        }
+
+        gl.shaderSource(shader, str)
+        gl.compileShader(shader)
+
+        if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+            console.log('aaaa')
+            alert(gl.getShaderInfoLog(shader))
+            return null
+        }
+
+        return shader
+    }
+        
+    var mvMatrix    //储存模型视图矩阵
+    var pMatrix     //储存投影矩阵
+
+    var triangleVertexPositionBuffer;
+    var squareVertexPositionBuffer;
+
+    function initBuffers(){
+        triangleVertexPositionBuffer = gl.createBuffer(); //这个数组对象位于显卡中
+        gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer) 
+        var vertices = [
+            0.0,  1.0, 0.0,
+           -1.0, -1.0, 0.0,
+            1.0, -1.0, 0.0
+        ]
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)  //Float32Array可以将列表转换成WebGL的形式
+        triangleVertexPositionBuffer.itemSize = 3  //每个顶点有3个数字组成，这两个属性不会传给WebGL但是非常有用
+        triangleVertexPositionBuffer.numItems = 3  //我们自动定义的属性，有3个不同的顶点位置
+        
+        squareVertexPositionBuffer = gl.createBuffer()
+        gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer)
+        vertices = [
+            1.0,  1.0,  0.0,
+           -1.0,  1.0,  0.0,
+            1.0, -1.0,  0.0,
+           -1.0, -1.0,  0.0
+        ]
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
+        squareVertexPositionBuffer.itemSize = 3
+        squareVertexPositionBuffer.numItems = 4
+        //上面就是我们向显卡推送的两个顶点的位置信息
+    }
+
+    function setMatrixUniforms(){
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix.toArray())
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix.toArray())
+    }
+
+    function drawScene(){
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight)  //使用viewport函数告诉WebGL一些canvas的尺寸
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)  // 清空canvas，开始绘制
+        //告诉webGL(垂直)视野是45°，canvas的宽高比以及从我们的视点看的的最近距离是0.1个单位，最远距离是100个单位
+        pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0)  //根据宽高比和视野信息，将我们需要的透视效果的值填充到矩阵中。
+
+        // 模型视图矩阵
+        //只需要记住一个4×4矩阵（不是3×3矩阵！）可以用来表示3D场景中的任何多种变换。
+        //首先从单位矩阵开始——这个矩阵意味着不进行任何变换——然后乘以你将要进行的第一个变换的矩阵，再乘以你将要进行的第二个变换的矩阵，然后第三个、第四个……最后乘积所得到的矩阵代表了所有你进行过的变换。
+        //用来表示当前位移/旋转状态的矩阵我们称之为“模型视图矩阵”（model-view matrix），mvMatrix就是用来储存我们的模型视图矩阵的变量。
+        mvMatrix = okMat4Trans(-1.5, 0.0, -7.0)  //生成一个位移矩阵，位移的起点是3D空间的中心，先向左移1.5个单位，向场景内部以7个单位
+        gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer)   //如果要使用数组对象，必须调用bindBuffer来将其指定为当前数组对象
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0,0)
+        setMatrixUniforms(); //告诉webGL我们当前的模型视图矩阵，虽然可以通过修改maMatrix来进行移动和旋转，但是者都只存在于js的私有空间中，这个函数可以将这些推送到显卡中
+        //此时，webGL已经知道了一个用来表示顶点位置信息的数字数组以及我们的矩阵，接下来告诉webGL用他们来做什么
+        gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems) //通俗的说法就是“用之前我给你的顶点数组来绘制一个三角形，顶点从item 0开始一直到numItems的值”
+
+        // 开始我们先把我们的模型视图矩阵向右移动3个单位。记住，我们之前的位置是中心偏左1.5个单位、中心偏内7个单位，现在我们的位置应该是中心偏右1.5个单位、中心偏内7个单位
+        mvMatrix = okMat4Trans(1.0, 0.5, -5.0)  
+        gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer)
+        gl.vertexAttribPointer(shaderProgram.vertexAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
+        setMatrixUniforms()
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems)
+    }
+
+    function webGLStart(){
+        var mycanvas = document.getElementById('course1_canvas')
+        initGl(mycanvas)
+        initShaders()
+        initBuffers()       //初始化一些数组对象，储存要绘制的三角形和矩形的细节
+
+        gl.clearColor(0.0, 0.0, 0.0, 1.0)       //清空canvas时将颜色设为黑色
+        gl.enable(gl.DEPTH_TEST)    //启用深度检测，后面的物体会被前面的物体挡住
+        drawScene()
+    }
+</script>
+
+<body onload="webGLStart()">
+    <canvas id = "course1_canvas" style="border:none;" width="500" height="500"></canvas>
+</body>
+
+</html>
