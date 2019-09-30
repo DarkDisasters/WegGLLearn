@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src = "./lesson01/Oak3D_v_0_5.js"></script>
+</head>
+<body>
+    <canvas id = "course2_webgl_color" style="border:none;" width="800" height="800"></canvas>
+    <!-- gl_Position在每一个顶点着色器中，它被隐性定义为一个Varying变量 -->
+    <script id = "shader-vs" type="x-shader/x-fragment">
+        attribute vec3 aVertexPosition;
+        attribute vec4 aVertexColor;
+
+        uniform mat4 uMVMatrix;
+        uniform mat4 uPMatrix;
+
+        varying vec4 vColor;
+
+        void main(void){
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+            vColor = aVertexColor;
+        }
+    </script>
+
+    <script id = "shader-fs" type = "x-shader/x-fragment">
+        precision mediump float;
+        varying vec4 vColor;
+
+        void main(void){
+            gl_FragColor = vColor;
+        }
+    </script>
+</body>
+</html>
