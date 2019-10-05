@@ -205,6 +205,20 @@
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(unpackedColors), gl.STATIC_DRAW)
             cubeVertexColorBuffer.itemSize = 4
             cubeVertexColorBuffer.numItems = 24
+
+            cubeVertexIndexBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer)
+            var cubeVertexIndices = [
+                0, 1, 2,      0, 2, 3,    // Front face
+                4, 5, 6,      4, 6, 7,    // Back face
+                8, 9, 10,     8, 10, 11,  // Top face
+                12, 13, 14,   12, 14, 15, // Bottom face
+                16, 17, 18,   16, 18, 19, // Right face
+                20, 21, 22,   20, 22, 23  // Left face
+            ]
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(cubeVertexIndices), gl.STATIC_DRAW)
+            cubeVertexIndexBuffer.itemSize = 1;
+            cubeVertexIndexBuffer.numItems = 36;
         }
 
         var mvMatrix
@@ -239,28 +253,31 @@
             gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight)
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
             pMatrix = okMat4Proj(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0)
-            mvMatrix = new okMat4()
 
+            mvMatrix = okMat4Trans(-1.5, 0.0, -8.0)
             mvPushMatrix()
-            mvMatrix.translate(OAK.SPACE_WORLD, -1.5, 1.0, -7.0, true)
+            // mvMatrix.translate(OAK.SPACE_WORLD, -1.5, 1.0, -7.0, true)
             mvMatrix.rotY(OAK.SPACE_LOACL, rPyramid, true)
             gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexPositionBuffer)
-            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, pyramidVertexPositionBufferr.itemSize, gl.FLOAT, false, 0, 0)
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, pyramidVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
             gl.bindBuffer(gl.ARRAY_BUFFER, pyramidVertexColorBuffer)
             gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, pyramidVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0)
             setMatrixUniform()
             gl.drawArrays(gl.TRIANGLES, 0, pyramidVertexPositionBuffer.numItems)
             mvPopMatrix()
 
+            mvMatrix = okMat4Trans(1.5, 0.0, -8.0)
             mvPushMatrix()
-            mvMatrix.translate(OAK.SPACE_WORLD, 1.5, 0.0, -7.0, true)
+            // mvMatrix.translate(OAK.SPACE_WORLD, 1.5, 0.0, -7.0, true)
             mvMatrix.rot(OAK.SPACE_LOACL, rCube, 1.0, 1.0, 1.0, true)
             gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
             gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexColorBuffer)
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexColorBuffer)
             gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, cubeVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0)
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer)
             setMatrixUniform()
-            gl.drawElements(gl.TRIANGLES, 0, cubeVertexPositionBuffer.numItems, gl.UNSIGNED_SHORT, 0)
+            gl.drawElements(gl.TRIANGLES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+
             mvPopMatrix()
         }
 
@@ -298,7 +315,7 @@
         }
     </script>
 
-    <canvas id="course3_webgl_move" style="border: none;" width="800" height="800"></canvas>
+    <canvas id="course3_webgl_move" style="border: none;" width="600" height="600"></canvas>
 </body>
 
 </html>

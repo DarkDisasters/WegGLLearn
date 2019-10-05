@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src = './lesson01/Oak3D_v_0_5.js'></script>
+</head>
+<body onload="webGLStart()">
+
+    <!-- 我们获取到了线性插值后的纹理坐标，并且以sampler类型的形式储存在变量中，它在着色器中代表纹理。
+    在drawScene函数中，我们的纹理与gl.TEXTURE0绑定在一起，而uniform变量uSampler的值是0，所以这个sampler变量代表的正是我们的纹理
+    着色器所做的就是调用texture2D，并根据坐标从纹理中获得相对应的颜色。
+    另外，纹理坐标通常使用s和t来表示，而不是x和y；不过别担心，着色器语言支持别名，所以我们可以依然可以方便的使用vTextureCoord.x和 vTextureCoord.y -->
+    <script id = 'shader-fs' type = 'x-shader/x-fragment'>
+        precision mediump float;
+
+        varying vec2 vTextureCoord;
+
+        uniform sampler2D uSampler;
+
+        void main(void){
+            gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+        }
+    </script>
+    <!-- 这和我们在第二课中给顶点着色器填充一些与颜色相关的东西非常相似，我们所做的就是将纹理坐标设置为顶点属性，然后以Varying变量的形式直接从顶点着色器中传出。 -->
+    <script id = 'shader-vs' type = 'x-shader/x-vertex'>
+        attribute vec3 aVertexPosition;
+        attribute vec2 aTextureCoord;
+
+        uniform mat4 uMVMatrix;
+        uniform mat4 uPMatrix;
+
+        varying vec2 vTextureCoord;
+
+        void main(void){
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+            vTextureCoord = aTextureCoord;
+        }
+    </script>
+
+    <script>
+        // 简单来说，纹理贴图的原理就是用特殊的方法来设置3D物体中某个点的颜色。
+        // 你应该会记得在第二课中，我们讲过颜色是由片元着色器指定的，所以我们需要载入图片然后将它输送到片元着色器。
+        // 另外，片元着色器也需要知道当前片元应当使用纹理的哪一部分，所以我们也需要把纹理的使用位置信息， 也就是纹理坐标， 传给片元着色器。
+        var gl;
+        function initGL(canvas){
+            try{
+                gl = canvas.getContext('experimental-webgl')
+                gl.viewportHeight = canvas.height;
+                gl.viewportWidth = canvas.width;
+            }catch(e){
+            }
+            if(!gl){
+                alert('could not initialise WebGL')
+            }
+            
+        }
+
+        function handleLoadTexture(texture){
+            // 首先我们必须告诉WebGL我们的纹理是“当前纹理”。
+            // 和之前我们见过的bindBuffer一样，需要用bindTexture将纹理与WebGL上下文绑定，设置其为当前纹理，
+            // 而不能直接作为参数使用某个纹理。
+            gl.bindTexture(gl.TEXTURE_2D, texture)
+            //在其他大多数计算机图形系统中情况正好相反，在垂直坐标轴上，越往下坐标值反而越大，就比如我们用来储存纹理的GIF格式图片。
+            // 这种垂直坐标轴上的差异意味着在WebGL的透视中，我们使用的GIF图片实际上已经被翻转过了，所以我们需要翻转回来，
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true) //告诉WebGL所有被载入纹理的图片都需要做一个垂直翻转
+            //将刚刚被载入还冒着热气的新出炉的图片上传到显卡端的纹理空间中。
+            // 函数的参数按顺序分别是，图片类型、细节层次（我们以后的课程中会详细讲解）、图片各通道的大小（也就是用于储存R、G、B值的数据类型）、最后是图片本身
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image)
+            // 下面两行的代码是用于指定纹理的特殊缩放参数的。
+            // 第一行代码告诉WebGL当纹理被填充到一个相对于图片尺寸较大的屏幕空间时应当怎么做，换句话说，就是告诉WebGL如何放大纹理。
+            // 同样，第二行代码则告诉WebGL如何缩小纹理。
+            // 有很多种缩放方式供你选择，而NEAREST是其中最不酷的一种，它用来指定说无论如何都只使用原始图片，也就是说原始图片什么样，纹理就什么样，所以当你近距离观看时，将会看到非常斑驳的纹理。
+            // 然而，这也有它的好处，那就是执行速度非常快，即使在非常慢的电脑上。
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+            gl.bindTexture(gl.TEXTURE_2D, null) //完成之后，我们将当前纹理设置为null，
+        }
+
+        var neheTexture;
+        function initTexture(){
+            neheTexture = gl.createTexture()
+            neheTexture.image = new Image()
+            // 我们加入了一个回调函数，它在图片被完全载入后将被调用，所以我们最好先设置好。
+            // 设置好图片的src属性。
+            // 完成后，图片将被异步加载——也就是说，设置图片src属性的代码将会立即执行并返回，而一个后台线程将会从服务器上将图片载入。
+            neheTexture.image.onload = function(){
+                handleLoadTexture(neheTexture)
+            }
+
+            neheTexture.image.src = './lesson05/nehe.gif'
+        }
+        
+        function getShader(gl, id){
+            var shaderScript = document.getElementById(id)
+            if(!shaderScript){
+                return null;
+            }
+
+            var str = ''
+            var k = shaderScript.firstChild
+            while(k){
+                if(k.nodeType == 3){
+                    str += k.textContent
+                }
+                k = k.nextSibling
+            }
+
+            var shader;
+            if(shaderScript.type == 'x-shader/x-fragment'){
+                shader = gl.createShader(gl.FRAGMENT_SHADER)
+            }else if(shaderScript.type == 'x-shader/x-vertex'){
+                shader = gl.createShader(gl.VERTEX_SHADER)
+            }else{
+                return null;
+            }
+
+            gl.shaderSource(shader, str)
+            gl.compileShader(shader)
+
+            if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+                console.log('aaaa')
+                alert(gl.getShaderInfoLog(shader))
+                return null;
+            }
+            
+            return shader;
+        }
+
+        var shaderProgram;
+        function initShaders(){
+            var fragmentShader = getShader(gl, 'shader-fs')
+            var vertexShader = getShader(gl, 'shader-vs')
+            shaderProgram = gl.createProgram()
+            gl.attachShader(shaderProgram, fragmentShader)
+            gl.attachShader(shaderProgram, vertexShader)
+            gl.linkProgram(shaderProgram)
+
+            if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)){
+                alert('could not initialise shaders')
+            }
+
+            gl.useProgram(shaderProgram)
+
+            shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, 'aVertexPosition')
+            gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute)
+            shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, 'aTextureCoord')
+            gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute)
+        
+            shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, 'uPMatrix')
+            shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMVMatrix')
+            shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, 'uSampler')
+        }
+
+        var cubeVertexCoordBuffer;
+        var cubeVertexPositionBuffer;
+        var cubeVertexIndexBuffer;
+        function initBuffers(){
+            cubeVertexPositionBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
+            vertices = [
+                // Front face
+                -1.0, -1.0, 1.0,
+                1.0, -1.0, 1.0,
+                1.0, 1.0, 1.0, -1.0, 1.0, 1.0,
+
+                // Back face
+                -1.0, -1.0, -1.0, -1.0, 1.0, -1.0,
+                1.0, 1.0, -1.0,
+                1.0, -1.0, -1.0,
+
+                // Top face
+                -1.0, 1.0, -1.0, -1.0, 1.0, 1.0,
+                1.0, 1.0, 1.0,
+                1.0, 1.0, -1.0,
+
+                // Bottom face
+                -1.0, -1.0, -1.0,
+                1.0, -1.0, -1.0,
+                1.0, -1.0, 1.0, -1.0, -1.0, 1.0,
+
+                // Right face
+                1.0, -1.0, -1.0,
+                1.0, 1.0, -1.0,
+                1.0, 1.0, 1.0,
+                1.0, -1.0, 1.0,
+
+                // Left face
+                -1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0
+            ]
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
+            cubeVertexPositionBuffer.itemSize = 3
+            cubeVertexPositionBuffer.numItems = 24
+
+
+            cubeVertexCoordBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexCoordBuffer)
+            // 我们所做的就是在每个数组对象中增加了一个新的顶点属性，每个顶点上这个属性有两个值。
+            // 纹理坐标指定的是在笛卡尔x,y坐标系中顶点位于纹理中的位置。
+            // 为了实现纹理坐标，我们把纹理的宽和高都看成1.0，这样（0,0）就是左下角，（1,1）就是右上角。
+            // 而从这样的假想转换到纹理图片的真实分辨率的工作，都是由WebGL来完成的。
+            var textureCoords = [
+                // Front face
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+        
+                // Back face
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+                0.0, 0.0,
+        
+                // Top face
+                0.0, 1.0,
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+        
+                // Bottom face
+                1.0, 1.0,
+                0.0, 1.0,
+                0.0, 0.0,
+                1.0, 0.0,
+        
+                // Right face
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+                0.0, 0.0,
+        
+                // Left face
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+            ]
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords), gl.STATIC_DRAW)
+            cubeVertexCoordBuffer.itemSize = 2;
+            cubeVertexCoordBuffer.numItems = 24;
+
+            cubeVertexIndexBuffer = gl.createBuffer()
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer)
+            var cubeVertexIndices = [
+                0, 1, 2,      0, 2, 3,    // Front face
+                4, 5, 6,      4, 6, 7,    // Back face
+                8, 9, 10,     8, 10, 11,  // Top face
+                12, 13, 14,   12, 14, 15, // Bottom face
+                16, 17, 18,   16, 18, 19, // Right face
+                20, 21, 22,   20, 22, 23  // Left face
+            ]
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(cubeVertexIndices), gl.STATIC_DRAW)
+            cubeVertexIndexBuffer.itemSize = 1;
+            cubeVertexIndexBuffer.numItems = 36;
+        }
+
+        function setMatrixUniforms(){
+            gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix.toArray())
+            gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix.toArray())
+        }
+
+        var xRot = 0;
+        var yRot = 0;
+        var zRot = 0;
+        function drawScene(){
+            gl.viewport(0, 0, gl.viewportWidth, gl.viewportWidth)
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+            pMatrix = okMat4Proj(45, gl.viewportWidth/gl.viewportHeight, 0.1, 100.0)
+
+            mvMatrix = okMat4Trans(0.0, 0.0, -5.0)
+            mvMatrix.rotX(OAK.SPACE_LOCAL, xRot, true);
+            mvMatrix.rotY(OAK.SPACE_LOCAL, yRot, true);
+            mvMatrix.rotZ(OAK.SPACE_LOCAL, zRot, true);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
+            gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0)
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexCoordBuffer)
+            gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, cubeVertexCoordBuffer.itemSize, gl.FLOAT, false, 0, 0)
+
+            // 现在WebGL已经知道各个顶点该使用纹理的哪个点了，下面我们需要告诉WebGL使用我们之前载入的纹理来绘制立方体。
+            
+            // WebGL可以在调用像gl.drawElements这种函数中处理最多32个纹理对象，从TEXTURE0到TEXTURE31，这些纹理被一一标记。
+            // 前两行代码所做的就是将我们刚刚载入的纹理指定为0号纹理，在第三行代码中我们将0这个值推送到着色器的uniform变量中
+            // （和其他我们用于处理矩阵的uniform变量一样，都是从initShaders函数中的着色器program对象中提取出来的），告诉着色器我们要使用0号纹理。
+            gl.activeTexture(gl.TEXTURE0)
+            gl.bindTexture(gl.TEXTURE_2D, neheTexture)
+            gl.uniform1i(shaderProgram.samplerUniform, 0)
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer)
+            setMatrixUniforms()
+            gl.drawElements(gl.TRIANGLES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0)
+        }
+
+        var lastTime = 0;
+        function animate(){
+            var timeNow = new Date().getTime()
+            if(lastTime != 0){
+                var elapsed = timeNow - lastTime
+
+                xRot += (90*elapsed) / 1000.0
+                yRot += (90*elapsed) / 1000.0
+                zRot += (90*elapsed) / 1000.0
+            }
+            lastTime = timeNow;
+        }
+
+        function tick(){
+            okRequestAnimationFrame(tick)
+            drawScene()
+            animate()
+        }
+
+        function webGLStart(){
+            var my_canvas = document.getElementById('lesson5_texture_webgl')
+            initGL(my_canvas)
+            initShaders()
+            initBuffers()
+            initTexture()
+
+            gl.clearColor(0.0, 0.0, 0.0, 1.0)
+            gl.enable(gl.DEPTH_TEST)
+
+            tick()
+        }
+    </script>
+    <canvas id = 'lesson5_texture_webgl' style="border: none;" width="600" height="600"></canvas>
+</body>
+</html>
