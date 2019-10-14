@@ -13,11 +13,27 @@
     <canvas id="course2_webgl_color" style="border:none;" width="800" height="800"></canvas>
     <!-- gl_Position在每一个顶点着色器中，它被隐性定义为一个Varying变量 -->
     <script id="shader-vs" type="x-shader/x-vertex">
-        attribute vec3 aVertexPosition; attribute vec4 aVertexColor; uniform mat4 uMVMatrix; uniform mat4 uPMatrix; varying vec4 vColor; void main(void){ gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); vColor = aVertexColor; }
+        attribute vec3 aVertexPosition; 
+        attribute vec4 aVertexColor; 
+        
+        uniform mat4 uMVMatrix; 
+        uniform mat4 uPMatrix; 
+        
+        varying vec4 vColor; 
+        
+        void main(void){ 
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); 
+            vColor = aVertexColor; 
+        }
     </script>
     <!-- 定义了中等精度的浮点值之后，我们把储存有平滑的混合颜色并经过线性插值运算的Varying变量VColor，直接立即作为颜色返回给片元着色器 -->
     <script id="shader-fs" type="x-shader/x-fragment">
-        precision mediump float; varying vec4 vColor; void main(void){ gl_FragColor = vColor; }
+        precision mediump float; 
+        varying vec4 vColor; 
+        
+        void main(void){ 
+            gl_FragColor = vColor; 
+        }
     </script>
 
     <script>

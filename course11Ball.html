@@ -19,8 +19,16 @@
     <!-- 和第六课中一样从纹理中提取了颜色信息，但是在返回的时候我们使用一个叫做vLightWeighting的Varying变量调整了它的R、G、B值。
     vLightWeighting是一个含有3个元素的向量，用来储存经过顶点着色器计算过的光照的红、绿、蓝的颜色值 -->
     <script id='shader-fs' type='x-shader/x-fragment'>
-        precision mediump float; varying vec2 vTextureCoord; varying vec3 vLightWeighting; uniform sampler2D uSampler; void main(void) { vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)); gl_FragColor = vec4(textureColor.rgb * vLightWeighting,
-        textureColor.a); }
+        precision mediump float; 
+        varying vec2 vTextureCoord; 
+        varying vec3 vLightWeighting; 
+        uniform sampler2D uSampler; 
+        
+        void main(void) 
+        { 
+            vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)); 
+            gl_FragColor = vec4(textureColor.rgb * vLightWeighting,textureColor.a); 
+        }
     </script>
     <!-- 这和我们在第二课中给顶点着色器填充一些与颜色相关的东西非常相似，我们所做的就是将纹理坐标设置为顶点属性，然后以Varying变量的形式直接从顶点着色器中传出。 -->
 
@@ -28,10 +36,36 @@
     uNMatrix就是我们的法线矩阵。uUseLighting是用来指定是否开启光照的uniform变量。
     uAmbientColor、uDirectionalColor和uLightingDirection显然都是用于储存用户在网页上输入的各种值的。 -->
     <script id='shader-vs' type='x-shader/x-vertex'>
-        attribute vec3 aVertexPosition; attribute vec3 aVertexNormal; attribute vec2 aTextureCoord; uniform mat4 uMVMatrix; uniform mat4 uPMatrix; uniform mat4 uNMatrix; uniform vec3 uAmbientColor; uniform vec3 uLightingDirection; uniform vec3 uDirectionalColor;
-        uniform bool uUseLighting; varying vec2 vTextureCoord; varying vec3 vLightWeighting; void main(void) { gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); vTextureCoord = aTextureCoord; if (!uUseLighting) { vLightWeighting = vec3(1.0,
-        1.0, 1.0); } else { vec3 transformedNormal = (uNMatrix * vec4(aVertexNormal,1.0)).xyz; float directionalLightWeighting = max(dot(transformedNormal, uLightingDirection), 0.0); vLightWeighting = uAmbientColor + uDirectionalColor * directionalLightWeighting;
-        } }
+        attribute vec3 aVertexPosition; 
+        attribute vec3 aVertexNormal; 
+        attribute vec2 aTextureCoord; 
+        
+        uniform mat4 uMVMatrix; 
+        uniform mat4 uPMatrix; 
+        uniform mat4 uNMatrix; 
+        uniform vec3 uAmbientColor; 
+        uniform vec3 uLightingDirection; 
+        uniform vec3 uDirectionalColor;
+        uniform bool uUseLighting; 
+        
+        varying vec2 vTextureCoord; 
+        varying vec3 vLightWeighting; 
+        
+        void main(void) 
+        { 
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); 
+            vTextureCoord = aTextureCoord; 
+            if (!uUseLighting) 
+            { 
+                vLightWeighting = vec3(1.0,1.0, 1.0); 
+            } else 
+            { 
+                vec3 transformedNormal = (uNMatrix * vec4(aVertexNormal,1.0)).xyz; 
+                float directionalLightWeighting = max(dot(transformedNormal, uLightingDirection), 0.0); 
+                vLightWeighting = uAmbientColor + uDirectionalColor * directionalLightWeighting;
+        
+            } 
+        }
     </script>
     <!-- 着色器主要输出的就是varying变量vLightWeighting，用于在片元着色器中调整图像的颜色。
     如果光照被关闭，我们就使用默认值（1,1,1），意思是说物体颜色将不会被改变。
